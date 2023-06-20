@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/pquerna/otp/totp"
 	"github.com/samber/lo"
 	"io"
 	"net/http"
@@ -17,6 +18,7 @@ type SessionClient struct {
 	bearerToken string
 	httpClient  *http.Client
 	userAgent   string
+	mfaSecret   string
 }
 
 func NewSessionClient(options ...ClientOption) SessionClient {
@@ -58,6 +60,8 @@ const (
 	SubtaskIDPwrKnowledgeChallenge                SubtaskID = "PwrKnowledgeChallenge"
 	SubtaskIDSuccessExit                          SubtaskID = "SuccessExit"
 	SubtaskIDLoginOpenHomeTimeline                SubtaskID = "LoginOpenHomeTimeline"
+	SubtaskIDLoginTwoFactorAuthChooseMethod       SubtaskID = "LoginTwoFactorAuthChooseMethod"
+	SubtaskIDLoginSecurityKeyNotSupportedCta      SubtaskID = "login_security_key_not_supported_cta"
 )
 
 type Session struct {
@@ -224,15 +228,20 @@ func (c SessionClient) GetSession(ctx context.Context, username string, password
 		return result, nil
 	}
 
-	if !lo.Contains(flowSession.NextStepIDs, SubtaskIDLoginAcid) {
+	if !lo.Contains(flowSession.NextStepIDs, SubtaskIDLoginTwoFactorAuthChallenge) {
 		return result, fmt.Errorf("unsupported subtasks %s", strings.Join(lo.Map(flowSession.NextStepIDs, func(v SubtaskID, _ int) string { return string(v) }), ", "))
+	}
+
+	code, err := totp.GenerateCode(c.mfaSecret, time.Now().UTC())
+	if err != nil {
+		return result, fmt.Errorf("totp.GenerateCode(): %v", err)
 	}
 
 	time.Sleep(1 * time.Second)
 
-	flowSession, err = c.getAuthTokenLoginAcidTask(ctx, guestToken, flowSession, username)
+	flowSession, err = c.getAuthTokenLoginTwoFactorAuthChallengeTask(ctx, guestToken, flowSession, code)
 	if err != nil {
-		return result, fmt.Errorf("Client.getAuthTokenLoginAcidTask(): %v", err)
+		return result, fmt.Errorf("Client.getAuthTokenLoginTwoFactorAuthChallengeTask(): %v", err)
 	}
 
 	if !flowSession.HasSession() {
@@ -699,15 +708,15 @@ func (c SessionClient) getAuthTokenLoginEnterAlternateIdentifierSubtask(ctx cont
 	return result, nil
 }
 
-func (c SessionClient) getAuthTokenLoginAcidTask(ctx context.Context, guestToken string, session loginFlowSession, username string) (loginFlowSession, error) {
+func (c SessionClient) getAuthTokenLoginTwoFactorAuthChallengeTask(ctx context.Context, guestToken string, session loginFlowSession, code string) (loginFlowSession, error) {
 	var result loginFlowSession
 	taskRequest, err := json.Marshal(loginFlowRequest{
 		FlowToken: session.FlowToken,
 		SubtaskInputs: []loginFlowRequestSubtaskInput{
 			{
-				SubtaskID: SubtaskIDLoginAcid,
+				SubtaskID: SubtaskIDLoginTwoFactorAuthChallenge,
 				EnterText: &loginFlowRequestSubtaskInputEnterText{
-					Text: username,
+					Text: code,
 					Link: "next_link",
 				},
 			},
@@ -885,6 +894,10 @@ func DecodeSubtaskID(s string) (SubtaskID, error) {
 		return SubtaskIDSuccessExit, nil
 	case string(SubtaskIDLoginOpenHomeTimeline):
 		return SubtaskIDLoginOpenHomeTimeline, nil
+	case string(SubtaskIDLoginTwoFactorAuthChooseMethod):
+		return SubtaskIDLoginTwoFactorAuthChooseMethod, nil
+	case string(SubtaskIDLoginSecurityKeyNotSupportedCta):
+		return SubtaskIDLoginSecurityKeyNotSupportedCta, nil
 	default:
 		return "", fmt.Errorf("invalid SubtaskID: %s", s)
 	}

@@ -7,6 +7,7 @@ type ClientOption func(ClientConfig)
 type ClientConfig struct {
 	httpClient *http.Client
 	userAgent  string
+	mfaSecret  string
 }
 
 func HttpClient(httpClient *http.Client) ClientOption {
@@ -18,5 +19,11 @@ func HttpClient(httpClient *http.Client) ClientOption {
 func UserAgent(userAgent string) ClientOption {
 	return func(config ClientConfig) {
 		config.userAgent = userAgent
+	}
+}
+
+func MFASecret(mfaSecret string) ClientOption {
+	return func(config ClientConfig) {
+		config.mfaSecret = mfaSecret
 	}
 }

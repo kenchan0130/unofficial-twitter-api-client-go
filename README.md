@@ -24,7 +24,8 @@ tweets, _ := client.GetUserLikingTweets(context.Background(), "96511371796373504
 
 ### Environment variables
 
-| Name               | Description                                       |
-|--------------------|---------------------------------------------------|
-| `TWITTER_USERNAME` | Twitter username, same as screen name without `@` |
-| `TWITTER_PASSWORD` | Twitter password of user                          |
+| Name                 | Description                                       |
+|----------------------|---------------------------------------------------|
+| `TWITTER_USERNAME`   | Twitter username, same as screen name without `@` |
+| `TWITTER_PASSWORD`   | Twitter password of user                          |
+| `TWITTER_MFA_SECRET` | Twitter MFA Secret of user                        |

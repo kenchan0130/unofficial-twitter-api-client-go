@@ -6,8 +6,8 @@ import (
 )
 
 func TestSessionClient_GetSession(t *testing.T) {
-	username, password := setup(t)
-	client := NewSessionClient()
+	username, password, mfaSecret := setup(t)
+	client := NewSessionClient(MFASecret(mfaSecret))
 	_, err := client.GetSession(context.Background(), username, password)
 	if err != nil {
 		t.Fatalf("client.GetSession(): %v", err)
