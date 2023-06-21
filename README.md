@@ -15,8 +15,9 @@ import (
 
 username := "Input your twitter username"
 password := "Input your twitter password of user"
+mfaSecret := "Input your twitter MFA Secret of user"
 
-client, _ := NewClient(usernamae, password)
+client, _ := NewClient(usernamae, password, MFASecret(mfaSecret))
 tweets, _ := client.GetUserLikingTweets(context.Background(), "965113717963735045", 20)
 ```
 
