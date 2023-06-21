@@ -135,6 +135,15 @@ func (c Client) GetUserLikingTweets(ctx context.Context, userID string, count in
 										ItemContent struct {
 											TweetResults struct {
 												Result struct {
+													Core struct {
+														UserResults struct {
+															Result struct {
+																Legacy struct {
+																	ScreenName string `json:"screen_name"`
+																} `json:"legacy"`
+															} `json:"result"`
+														} `json:"user_results"`
+													} `json:"core"`
 													Tweet *struct {
 														tweetResultContent
 													} `json:"tweet"`
@@ -181,6 +190,7 @@ func (c Client) GetUserLikingTweets(ctx context.Context, userID string, count in
 
 		result = append(result, Tweet{
 			AuthorID:            legacy.UserIDStr,
+			AuthorScreenName:    entry.Content.ItemContent.TweetResults.Result.Core.UserResults.Result.Legacy.ScreenName,
 			CreatedAt:           createdAt,
 			EditHistoryTweetIDs: editControl.EditTweetIDs,
 			ID:                  legacy.IDStr,

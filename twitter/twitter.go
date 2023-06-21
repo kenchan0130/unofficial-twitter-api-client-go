@@ -4,6 +4,7 @@ import "time"
 
 type Tweet struct {
 	AuthorID            string
+	AuthorScreenName    string
 	CreatedAt           time.Time
 	EditHistoryTweetIDs []string
 	ID                  string
