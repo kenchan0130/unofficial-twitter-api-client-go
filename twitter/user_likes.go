@@ -134,7 +134,7 @@ func (c Client) GetUserLikingTweets(ctx context.Context, userID string, count in
 									Content struct {
 										ItemContent struct {
 											TweetResults struct {
-												Result struct {
+												Result *struct {
 													Core struct {
 														UserResults struct {
 															Result struct {
@@ -172,7 +172,7 @@ func (c Client) GetUserLikingTweets(ctx context.Context, userID string, count in
 
 	var result []Tweet
 	for _, entry := range instructions[0].Entries {
-		if entry.Content.EntryType != "TimelineTimelineItem" {
+		if entry.Content.EntryType != "TimelineTimelineItem" || entry.Content.ItemContent.TweetResults.Result == nil {
 			continue
 		}
 

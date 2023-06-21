@@ -109,7 +109,7 @@ type loginFlowRequest struct {
 }
 
 type loginFlowRequestSubtaskInput struct {
-	SubtaskID            SubtaskID                                         `json:"subtask_id"`
+	SubtaskID            *SubtaskID                                        `json:"subtask_id"`
 	EnterPassword        *loginFlowRequestSubtaskInputEnterPassword        `json:"enter_password"`
 	EnterText            *loginFlowRequestSubtaskInputEnterText            `json:"enter_text"`
 	SettingsList         *loginFlowRequestSubtaskInputSettingsList         `json:"settings_list"`
@@ -202,6 +202,15 @@ func (c SessionClient) GetSession(ctx context.Context, username string, password
 	}
 
 	if flowSession.HasSession() {
+		if lo.Contains(flowSession.NextStepIDs, SubtaskIDLoginSuccessSubtask) {
+			time.Sleep(1 * time.Second)
+
+			err = c.getAuthTokenLoginSuccessSubTask(ctx, flowSession.FlowToken, flowSession.Session)
+			if err != nil {
+				return result, fmt.Errorf("Client.getAuthTokenLoginSuccessSubTask(): %v", err)
+			}
+		}
+
 		newCSRFToken, err := c.getCSRFToken(ctx, guestToken, flowSession.Session)
 		if err != nil {
 			return result, fmt.Errorf("Client.getCSRFToken(): %v", err)
@@ -220,6 +229,15 @@ func (c SessionClient) GetSession(ctx context.Context, username string, password
 	}
 
 	if flowSession.HasSession() {
+		if lo.Contains(flowSession.NextStepIDs, SubtaskIDLoginSuccessSubtask) {
+			time.Sleep(1 * time.Second)
+
+			err = c.getAuthTokenLoginSuccessSubTask(ctx, flowSession.FlowToken, flowSession.Session)
+			if err != nil {
+				return result, fmt.Errorf("Client.getAuthTokenLoginSuccessSubTask(): %v", err)
+			}
+		}
+
 		newCSRFToken, err := c.getCSRFToken(ctx, guestToken, flowSession.Session)
 		if err != nil {
 			return result, fmt.Errorf("Client.getCSRFToken(): %v", err)
@@ -229,10 +247,6 @@ func (c SessionClient) GetSession(ctx context.Context, username string, password
 
 		return result, nil
 	}
-
-	//if !lo.Contains(flowSession.NextStepIDs, SubtaskIDLoginTwoFactorAuthChallenge) {
-	//	return result, fmt.Errorf("unsupported subtasks %s", strings.Join(lo.Map(flowSession.NextStepIDs, func(v SubtaskID, _ int) string { return string(v) }), ", "))
-	//}
 
 	time.Sleep(1 * time.Second)
 
@@ -248,6 +262,15 @@ func (c SessionClient) GetSession(ctx context.Context, username string, password
 
 	if !flowSession.HasSession() {
 		return result, fmt.Errorf("no session found, API specificaton may have changed")
+	}
+
+	if lo.Contains(flowSession.NextStepIDs, SubtaskIDLoginSuccessSubtask) {
+		time.Sleep(1 * time.Second)
+
+		err = c.getAuthTokenLoginSuccessSubTask(ctx, flowSession.FlowToken, flowSession.Session)
+		if err != nil {
+			return result, fmt.Errorf("Client.getAuthTokenLoginSuccessSubTask(): %v", err)
+		}
 	}
 
 	newCSRFToken, err := c.getCSRFToken(ctx, guestToken, flowSession.Session)
@@ -368,7 +391,7 @@ func (c SessionClient) getAuthTokenLoginJsInstrumentationSubtask(ctx context.Con
 		FlowToken: session.FlowToken,
 		SubtaskInputs: []loginFlowRequestSubtaskInput{
 			{
-				SubtaskID: SubtaskIDLoginJsInstrumentationSubtask,
+				SubtaskID: lo.ToPtr(SubtaskIDLoginJsInstrumentationSubtask),
 				JSInstrumentation: &loginFlowRequestSubtaskInputJSInstrumentation{
 					Response: "{}",
 					Link:     "next_link",
@@ -437,7 +460,7 @@ func (c SessionClient) getAuthTokenLoginEnterUserIdentifierTask(ctx context.Cont
 		FlowToken: session.FlowToken,
 		SubtaskInputs: []loginFlowRequestSubtaskInput{
 			{
-				SubtaskID: SubtaskIDLoginEnterUserIdentifierSSO,
+				SubtaskID: lo.ToPtr(SubtaskIDLoginEnterUserIdentifierSSO),
 				SettingsList: &loginFlowRequestSubtaskInputSettingsList{
 					SettingResponses: []loginFlowRequestSubtaskInputSettingsListSettingResponse{
 						{
@@ -515,7 +538,7 @@ func (c SessionClient) getAuthTokenLoginEnterPasswordTask(ctx context.Context, g
 		FlowToken: session.FlowToken,
 		SubtaskInputs: []loginFlowRequestSubtaskInput{
 			{
-				SubtaskID: SubtaskIDLoginEnterPassword,
+				SubtaskID: lo.ToPtr(SubtaskIDLoginEnterPassword),
 				EnterPassword: &loginFlowRequestSubtaskInputEnterPassword{
 					Password: password,
 					Link:     "next_link",
@@ -591,7 +614,7 @@ func (c SessionClient) getAuthTokenAccountDuplicationCheckTask(ctx context.Conte
 		FlowToken: session.FlowToken,
 		SubtaskInputs: []loginFlowRequestSubtaskInput{
 			{
-				SubtaskID: SubtaskIDAccountDuplicationCheck,
+				SubtaskID: lo.ToPtr(SubtaskIDAccountDuplicationCheck),
 				CheckLoggedInAccount: &loginFlowRequestSubtaskInputCheckLoggedInAccount{
 					Link: "AccountDuplicationCheck_false",
 				},
@@ -666,7 +689,7 @@ func (c SessionClient) getAuthTokenLoginEnterAlternateIdentifierSubtask(ctx cont
 		FlowToken: session.FlowToken,
 		SubtaskInputs: []loginFlowRequestSubtaskInput{
 			{
-				SubtaskID: SubtaskIDLoginEnterAlternateIdentifierSubtask,
+				SubtaskID: lo.ToPtr(SubtaskIDLoginEnterAlternateIdentifierSubtask),
 				EnterText: &loginFlowRequestSubtaskInputEnterText{
 					Text: username,
 					Link: "next_link",
@@ -732,7 +755,7 @@ func (c SessionClient) getAuthTokenLoginTwoFactorAuthChallengeTask(ctx context.C
 		FlowToken: session.FlowToken,
 		SubtaskInputs: []loginFlowRequestSubtaskInput{
 			{
-				SubtaskID: SubtaskIDLoginTwoFactorAuthChallenge,
+				SubtaskID: lo.ToPtr(SubtaskIDLoginTwoFactorAuthChallenge),
 				EnterText: &loginFlowRequestSubtaskInputEnterText{
 					Text: code,
 					Link: "next_link",
@@ -789,9 +812,11 @@ func (c SessionClient) getAuthTokenLoginTwoFactorAuthChallengeTask(ctx context.C
 	for _, cookie := range res.Cookies() {
 		if cookie.Name == "auth_token" {
 			result.Session.AuthToken = cookie.Value
+			result.Cookies = append(result.Cookies, cookie)
 		}
 		if cookie.Name == "ct0" {
 			result.Session.CSRFToken = cookie.Value
+			result.Cookies = append(result.Cookies, cookie)
 		}
 	}
 
@@ -800,6 +825,39 @@ func (c SessionClient) getAuthTokenLoginTwoFactorAuthChallengeTask(ctx context.C
 	}
 
 	return result, nil
+}
+
+func (c *SessionClient) getAuthTokenLoginSuccessSubTask(ctx context.Context, flowToken string, session Session) error {
+	taskRequest, err := json.Marshal(loginFlowRequest{
+		FlowToken:     flowToken,
+		SubtaskInputs: []loginFlowRequestSubtaskInput{},
+	})
+	if err != nil {
+		return fmt.Errorf("json.Marshal(): %v", err)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, "https://api.twitter.com/1.1/onboarding/task.json", bytes.NewBuffer(taskRequest))
+	if err != nil {
+		return fmt.Errorf("http.NewRequestWithContext(): %v", err)
+	}
+
+	req.Header.Set("User-Agent", c.userAgent)
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", c.bearerToken))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-Csrf-Token", session.CSRFToken)
+	req.Header.Set("cookie", fmt.Sprintf("auth_token=%s; ct0=%s", session.AuthToken, session.CSRFToken))
+
+	res, err := c.httpClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("Client.httpClient.Do(): %v", err)
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		return fmt.Errorf("invalid status code. url: %s status: %d", req.URL.String(), res.StatusCode)
+	}
+
+	return nil
 }
 
 func (c SessionClient) getCSRFToken(ctx context.Context, guestToken string, session Session) (string, error) {
