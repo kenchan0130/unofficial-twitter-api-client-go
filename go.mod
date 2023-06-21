@@ -1,4 +1,4 @@
-module kenchan0130/unofficial-twitter-api-client-go
+module github.com/kenchan0130/unofficial-twitter-api-client-go
 
 go 1.20
 
