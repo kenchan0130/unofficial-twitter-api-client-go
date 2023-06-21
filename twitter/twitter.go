@@ -9,3 +9,10 @@ type Tweet struct {
 	ID                  string
 	Text                string
 }
+
+type User struct {
+	CreatedAt time.Time
+	ID        string
+	Name      string
+	Username  string
+}
