@@ -39,8 +39,8 @@ func NewClient(username string, password string, options ...ClientOption) (Clien
 	return client, nil
 }
 
-func newDefaultRetryConfig() ClientConfig {
-	return ClientConfig{
+func newDefaultRetryConfig() *ClientConfig {
+	return &ClientConfig{
 		httpClient: retryablehttp.NewClient().StandardClient(),
 		userAgent:  "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36",
 	}

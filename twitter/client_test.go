@@ -15,7 +15,7 @@ func setup(t *testing.T) (string, string, string) {
 		t.Fatalf("TWITTER_PASSWORD is required")
 	}
 	mfaSecret := os.Getenv("TWITTER_MFA_SECRET")
-	if password == "" {
+	if mfaSecret == "" {
 		t.Fatalf("TWITTER_MFA_SECRET is required")
 	}
 

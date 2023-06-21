@@ -10,7 +10,6 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"strings"
 	"time"
 )
 
@@ -32,6 +31,7 @@ func NewSessionClient(options ...ClientOption) SessionClient {
 		bearerToken: "AAAAAAAAAAAAAAAAAAAAANRILgAAAAAAnNwIzUejRCOuH5E6I8xnZz4puTs%3D1Zv7ttfk8LF81IUq16cHjhLTvJu4FA33AGWWjCpTnA",
 		httpClient:  config.httpClient,
 		userAgent:   config.userAgent,
+		mfaSecret:   config.mfaSecret,
 	}
 
 	return client
@@ -62,6 +62,8 @@ const (
 	SubtaskIDLoginOpenHomeTimeline                SubtaskID = "LoginOpenHomeTimeline"
 	SubtaskIDLoginTwoFactorAuthChooseMethod       SubtaskID = "LoginTwoFactorAuthChooseMethod"
 	SubtaskIDLoginSecurityKeyNotSupportedCta      SubtaskID = "login_security_key_not_supported_cta"
+	SubtaskIDDenyLoginSubtask                     SubtaskID = "DenyLoginSubtask"
+	SubtaskIDStartNewLoginFlowSubtask             SubtaskID = "StartNewLoginFlowSubtask"
 )
 
 type Session struct {
@@ -87,7 +89,7 @@ type initLoginFlowDataFlowContextStartLocation struct {
 }
 
 type loginFlowSession struct {
-	Att         string
+	Cookies     []*http.Cookie
 	FlowToken   string
 	NextStepIDs []SubtaskID
 	Session     Session
@@ -228,16 +230,16 @@ func (c SessionClient) GetSession(ctx context.Context, username string, password
 		return result, nil
 	}
 
-	if !lo.Contains(flowSession.NextStepIDs, SubtaskIDLoginTwoFactorAuthChallenge) {
-		return result, fmt.Errorf("unsupported subtasks %s", strings.Join(lo.Map(flowSession.NextStepIDs, func(v SubtaskID, _ int) string { return string(v) }), ", "))
-	}
+	//if !lo.Contains(flowSession.NextStepIDs, SubtaskIDLoginTwoFactorAuthChallenge) {
+	//	return result, fmt.Errorf("unsupported subtasks %s", strings.Join(lo.Map(flowSession.NextStepIDs, func(v SubtaskID, _ int) string { return string(v) }), ", "))
+	//}
+
+	time.Sleep(1 * time.Second)
 
 	code, err := totp.GenerateCode(c.mfaSecret, time.Now().UTC())
 	if err != nil {
 		return result, fmt.Errorf("totp.GenerateCode(): %v", err)
 	}
-
-	time.Sleep(1 * time.Second)
 
 	flowSession, err = c.getAuthTokenLoginTwoFactorAuthChallengeTask(ctx, guestToken, flowSession, code)
 	if err != nil {
@@ -352,12 +354,8 @@ func (c SessionClient) getAuthTokenInitTask(ctx context.Context, guestToken stri
 		result.NextStepIDs = append(result.NextStepIDs, id)
 	}
 
-	for _, cookie := range res.Cookies() {
-		if cookie != nil && cookie.Name == "att" {
-			result.Att = cookie.Value
-		}
-	}
-	if result.Att == "" {
+	result.Cookies = res.Cookies()
+	if !c.hasAtt(result.Cookies) {
 		return result, fmt.Errorf("the 'att' is empty at cookie. API specifications may have changed, url: %s status: %d body: %s", req.URL.String(), res.StatusCode, string(resp))
 	}
 
@@ -391,7 +389,11 @@ func (c SessionClient) getAuthTokenLoginJsInstrumentationSubtask(ctx context.Con
 	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", c.bearerToken))
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("x-guest-token", guestToken)
-	req.Header.Set("cookie", fmt.Sprintf("att=%s", session.Att))
+	for _, cookie := range session.Cookies {
+		if cookie != nil {
+			req.AddCookie(cookie)
+		}
+	}
 
 	res, err := c.httpClient.Do(req)
 	if err != nil {
@@ -413,7 +415,7 @@ func (c SessionClient) getAuthTokenLoginJsInstrumentationSubtask(ctx context.Con
 		return result, fmt.Errorf("the 'flow_token' is empty. API specifications may have changed, url: %s status: %d body: %s", req.URL.String(), res.StatusCode, string(resp))
 	}
 	result.FlowToken = taskRes.FlowToken
-	result.Att = session.Att
+	result.Cookies = session.Cookies
 
 	if len(taskRes.Subtasks) == 0 {
 		return result, fmt.Errorf("the 'subtasks' is blank. API specifications may have changed, url: %s status: %d body: %s", req.URL.String(), res.StatusCode, string(resp))
@@ -465,7 +467,11 @@ func (c SessionClient) getAuthTokenLoginEnterUserIdentifierTask(ctx context.Cont
 	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", c.bearerToken))
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("x-guest-token", guestToken)
-	req.Header.Set("cookie", fmt.Sprintf("att=%s", session.Att))
+	for _, cookie := range session.Cookies {
+		if cookie != nil {
+			req.AddCookie(cookie)
+		}
+	}
 
 	res, err := c.httpClient.Do(req)
 	if err != nil {
@@ -487,7 +493,7 @@ func (c SessionClient) getAuthTokenLoginEnterUserIdentifierTask(ctx context.Cont
 		return result, fmt.Errorf("the 'flow_token' is empty. API specifications may have changed, url: %s status: %d body: %s", req.URL.String(), res.StatusCode, string(resp))
 	}
 	result.FlowToken = taskRes.FlowToken
-	result.Att = session.Att
+	result.Cookies = session.Cookies
 
 	if len(taskRes.Subtasks) == 0 {
 		return result, fmt.Errorf("the 'subtasks' is blank. API specifications may have changed, url: %s status: %d body: %s", req.URL.String(), res.StatusCode, string(resp))
@@ -530,7 +536,11 @@ func (c SessionClient) getAuthTokenLoginEnterPasswordTask(ctx context.Context, g
 	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", c.bearerToken))
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("x-guest-token", guestToken)
-	req.Header.Set("cookie", fmt.Sprintf("att=%s", session.Att))
+	for _, cookie := range session.Cookies {
+		if cookie != nil {
+			req.AddCookie(cookie)
+		}
+	}
 
 	res, err := c.httpClient.Do(req)
 	if err != nil {
@@ -549,7 +559,7 @@ func (c SessionClient) getAuthTokenLoginEnterPasswordTask(ctx context.Context, g
 	}
 
 	result.FlowToken = taskRes.FlowToken
-	result.Att = session.Att
+	result.Cookies = session.Cookies
 
 	for _, subtask := range taskRes.Subtasks {
 		id, err := DecodeSubtaskID(subtask.SubtaskID)
@@ -601,7 +611,11 @@ func (c SessionClient) getAuthTokenAccountDuplicationCheckTask(ctx context.Conte
 	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", c.bearerToken))
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("x-guest-token", guestToken)
-	req.Header.Set("cookie", fmt.Sprintf("att=%s", session.Att))
+	for _, cookie := range session.Cookies {
+		if cookie != nil {
+			req.AddCookie(cookie)
+		}
+	}
 
 	res, err := c.httpClient.Do(req)
 	if err != nil {
@@ -620,7 +634,7 @@ func (c SessionClient) getAuthTokenAccountDuplicationCheckTask(ctx context.Conte
 	}
 
 	result.FlowToken = taskRes.FlowToken
-	result.Att = session.Att
+	result.Cookies = session.Cookies
 
 	for _, subtask := range taskRes.Subtasks {
 		id, err := DecodeSubtaskID(subtask.SubtaskID)
@@ -673,7 +687,11 @@ func (c SessionClient) getAuthTokenLoginEnterAlternateIdentifierSubtask(ctx cont
 	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", c.bearerToken))
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("x-guest-token", guestToken)
-	req.Header.Set("cookie", fmt.Sprintf("att=%s", session.Att))
+	for _, cookie := range session.Cookies {
+		if cookie != nil {
+			req.AddCookie(cookie)
+		}
+	}
 
 	res, err := c.httpClient.Do(req)
 	if err != nil {
@@ -695,7 +713,7 @@ func (c SessionClient) getAuthTokenLoginEnterAlternateIdentifierSubtask(ctx cont
 		return result, fmt.Errorf("the 'flow_token' is empty. API specifications may have changed, url: %s status: %d body: %s", req.URL.String(), res.StatusCode, string(resp))
 	}
 	result.FlowToken = taskRes.FlowToken
-	result.Att = session.Att
+	result.Cookies = session.Cookies
 
 	for _, subtask := range taskRes.Subtasks {
 		id, err := DecodeSubtaskID(subtask.SubtaskID)
@@ -735,7 +753,11 @@ func (c SessionClient) getAuthTokenLoginTwoFactorAuthChallengeTask(ctx context.C
 	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", c.bearerToken))
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("x-guest-token", guestToken)
-	req.Header.Set("cookie", fmt.Sprintf("att=%s", session.Att))
+	for _, cookie := range session.Cookies {
+		if cookie != nil {
+			req.AddCookie(cookie)
+		}
+	}
 
 	res, err := c.httpClient.Do(req)
 	if err != nil {
@@ -754,7 +776,7 @@ func (c SessionClient) getAuthTokenLoginTwoFactorAuthChallengeTask(ctx context.C
 	}
 
 	result.FlowToken = taskRes.FlowToken
-	result.Att = session.Att
+	result.Cookies = session.Cookies
 
 	for _, subtask := range taskRes.Subtasks {
 		id, err := DecodeSubtaskID(subtask.SubtaskID)
@@ -852,6 +874,16 @@ func (c SessionClient) getCSRFToken(ctx context.Context, guestToken string, sess
 	return result, nil
 }
 
+func (c *SessionClient) hasAtt(cookies []*http.Cookie) bool {
+	for _, cookie := range cookies {
+		if cookie != nil && cookie.Name == "att" && cookie.Value != "" {
+			return true
+		}
+	}
+
+	return false
+}
+
 func DecodeSubtaskID(s string) (SubtaskID, error) {
 	switch s {
 	case string(SubtaskIDLoginJsInstrumentationSubtask):
@@ -898,6 +930,10 @@ func DecodeSubtaskID(s string) (SubtaskID, error) {
 		return SubtaskIDLoginTwoFactorAuthChooseMethod, nil
 	case string(SubtaskIDLoginSecurityKeyNotSupportedCta):
 		return SubtaskIDLoginSecurityKeyNotSupportedCta, nil
+	case string(SubtaskIDDenyLoginSubtask):
+		return SubtaskIDDenyLoginSubtask, nil
+	case string(SubtaskIDStartNewLoginFlowSubtask):
+		return SubtaskIDStartNewLoginFlowSubtask, nil
 	default:
 		return "", fmt.Errorf("invalid SubtaskID: %s", s)
 	}
