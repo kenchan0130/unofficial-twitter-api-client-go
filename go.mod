@@ -3,7 +3,7 @@ module github.com/kenchan0130/unofficial-twitter-api-client-go
 go 1.20
 
 require (
-	github.com/hashicorp/go-retryablehttp v0.7.4
+	github.com/hashicorp/go-retryablehttp v0.7.5
 	github.com/pquerna/otp v1.4.0
 	github.com/samber/lo v1.38.1
 )
